@@ -1,0 +1,53 @@
+services:
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finance-bot
+    restart: unless-stopped
+
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_SHEETS_CREDENTIALS_JSON=${GOOGLE_SHEETS_CREDENTIALS_JSON}
+      - SPREADSHEET_ID=${SPREADSHEET_ID}
+      - AUTHORIZED_USER_ID=${AUTHORIZED_USER_ID}
+      - DELETE_MESSAGES=${DELETE_MESSAGES:-true}
+      - HISTORY_PAGE_SIZE=${HISTORY_PAGE_SIZE:-5}
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Jakarta
+
+    volumes:
+      - bot-data:/app/data
+      - ./logs:/app/logs
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # ============================================================
+    # PERBAIKAN: Healthcheck menggunakan Python
+    # ============================================================
+    # Memeriksa:
+    # 1. Apakah bot berjalan (cek proses Python)
+    # 2. Apakah health file terupdate dalam 5 menit terakhir
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, time; health_file='/app/health'; exit(0 if os.path.exists(health_file) and (time.time() - os.path.getmtime(health_file)) < 300 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Resource limits untuk VPS RAM 1GB
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+volumes:
+  bot-data:
+    driver: local

@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Project specific
+bot_data.pickle
+/data/
+*.log
+logs/
+*.pid
+*.lock
+
+# Environment variables - IMPORTANT!
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Google Sheets credentials - IMPORTANT!
+service-account-key.json
+*.key.json
+!*.example
+credentials.json
+token.json
+
+# Docker
+docker-compose.override.yml
+*.dockerignore
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# OS files
+Thumbs.db
+.DS_Store
+*.tmp
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+test_*.pyc
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
