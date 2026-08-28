@@ -1,252 +1,427 @@
 #!/bin/bash
 
 # ============================================================
-# FINANCE BOT — VPS INSTALLER
-# Version: 1.0.0
+# TELEGRAM FINANCE BOT - INSTALASI VPS
+# ============================================================
+# Script ini menginstal semua komponen yang diperlukan untuk
+# menjalankan Telegram Finance Bot di VPS Ubuntu.
+#
+# Penggunaan:
+#   sudo bash scripts/install-vps.sh
 # ============================================================
 
-set -e
+set -Eeuo pipefail
 
-CYAN='\033[0;36m'
+# ============================================================
+# VARIABEL GLOBAL
+# ============================================================
+
+# Direktori instalasi (harus sama dengan bootstrap.sh)
+INSTALL_DIR="/opt/Telegram-Finance-Bot"
+
+# Warna untuk output
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-RED='\033[0;31m'
 BLUE='\033[0;34m'
-WHITE='\033[1;37m'
-BOLD='\033[1m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-LOG_FILE="$PROJECT_DIR/install.log"
+# ============================================================
+# FUNGSI UTILITY
+# ============================================================
 
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-    echo "$(date) [INFO] $1" >> "$LOG_FILE"
+print_header() {
+    echo -e "${BLUE}============================================================${NC}"
+    echo -e "${BLUE}$1${NC}"
+    echo -e "${BLUE}============================================================${NC}"
 }
 
-log_success() {
-    echo -e "${GREEN}[✓]${NC} $1"
-    echo "$(date) [SUCCESS] $1" >> "$LOG_FILE"
+print_error() {
+    echo -e "${RED}[✗] ERROR: $1${NC}"
 }
 
-log_warning() {
-    echo -e "${YELLOW}[!]${NC} $1"
-    echo "$(date) [WARNING] $1" >> "$LOG_FILE"
+print_success() {
+    echo -e "${GREEN}[✓] $1${NC}"
 }
 
-log_error() {
-    echo -e "${RED}[✗]${NC} $1"
-    echo "$(date) [ERROR] $1" >> "$LOG_FILE"
+print_info() {
+    echo -e "${YELLOW}[INFO] $1${NC}"
 }
 
-print_banner() {
-    clear
-    echo -e "${CYAN}"
-    echo "    ███████╗██╗███╗   ██╗ █████╗ ███╗   ██╗ ██████╗███████╗"
-    echo "    ██╔════╝██║████╗  ██║██╔══██╗████╗  ██║██╔════╝██╔════╝"
-    echo "    █████╗  ██║██╔██╗ ██║███████║██╔██╗ ██║██║  ███╗█████╗"
-    echo "    ██╔══╝  ██║██║╚██╗██║██╔══██║██║╚██╗██║██║   ██║██╔══╝"
-    echo "    ██║     ██║██║ ╚████║██║  ██║██║ ╚████║╚██████╔╝███████╗"
-    echo "    ╚═╝     ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝"
-    echo -e "${NC}"
-    echo -e "${WHITE}💰 PERSONAL FINANCE TRACKER${NC}"
-    echo ""
-}
+# ============================================================
+# CEK PRASYARAT
+# ============================================================
 
-check_system() {
-    log_info "Memeriksa sistem..."
+check_sudo() {
+    print_info "Memeriksa hak akses root/sudo..."
     
-    OS=$(lsb_release -ds 2>/dev/null || cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2 || echo "Unknown")
-    log_info "OS: $OS"
-    
-    RAM_TOTAL=$(free -m | awk '/Mem:/ {print $2}')
-    RAM_GB=$((RAM_TOTAL / 1024))
-    if [ $RAM_GB -lt 1 ]; then
-        log_warning "RAM: ${RAM_GB}GB (direkomendasikan: 1GB+)"
-    else
-        log_success "RAM: ${RAM_GB}GB"
-    fi
-    
-    DISK_AVAIL=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-    if [ $DISK_AVAIL -lt 5 ]; then
-        log_warning "Disk space: ${DISK_AVAIL}GB available (direkomendasikan: 5GB+)"
-    else
-        log_success "Disk space: ${DISK_AVAIL}GB available"
-    fi
-    
-    log_info "Memeriksa koneksi internet..."
-    if curl -s -o /dev/null -w "%{http_code}" https://api.telegram.org | grep -q "200"; then
-        log_success "Koneksi internet: OK"
-    else
-        log_error "Koneksi internet: GAGAL"
+    if [[ $EUID -ne 0 ]]; then
+        print_error "Script ini HARUS dijalankan dengan sudo atau sebagai root."
         exit 1
     fi
+    
+    print_success "Hak akses root/sudo terkonfirmasi"
 }
 
-install_docker() {
-    log_info "Memeriksa Docker..."
+check_internet() {
+    print_info "Memeriksa koneksi internet..."
     
-    if command -v docker &> /dev/null; then
-        DOCKER_VERSION=$(docker --version | cut -d' ' -f3 | sed 's/,//')
-        log_success "Docker sudah terinstall: v$DOCKER_VERSION"
-    else
-        log_info "Menginstal Docker..."
-        curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-        sh /tmp/get-docker.sh
-        rm /tmp/get-docker.sh
-        systemctl enable docker
-        systemctl start docker
-        log_success "Docker terinstall"
-    fi
+    local test_urls=(
+        "https://github.com"
+        "https://raw.githubusercontent.com"
+        "https://api.github.com"
+        "https://www.google.com"
+    )
     
-    if command -v docker-compose &> /dev/null; then
-        COMPOSE_VERSION=$(docker-compose --version | cut -d' ' -f3 | sed 's/,//')
-        log_success "Docker Compose terinstall: v$COMPOSE_VERSION"
-    elif docker compose version &> /dev/null; then
-        COMPOSE_VERSION=$(docker compose version | cut -d' ' -f3 | sed 's/,//')
-        log_success "Docker Compose terinstall: v$COMPOSE_VERSION"
-    else
-        log_info "Menginstal Docker Compose..."
-        COMPOSE_LATEST=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep tag_name | cut -d'"' -f4)
-        curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_LATEST}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        chmod +x /usr/local/bin/docker-compose
-        log_success "Docker Compose terinstall"
-    fi
+    for url in "${test_urls[@]}"; do
+        if curl -4 -sSf --connect-timeout 5 --max-time 10 -o /dev/null "$url" 2>/dev/null; then
+            print_success "Koneksi internet: OK (${url})"
+            return 0
+        fi
+    done
+    
+    print_error "Koneksi internet: GAGAL"
+    echo ""
+    echo "[DIAGNOSTIK] Semua endpoint gagal dijangkau. Periksa:"
+    echo "  1. DNS: apakah 'getent hosts github.com' berhasil?"
+    echo "  2. Firewall: apakah blokir port 443 (HTTPS)?"
+    echo "  3. Proxy: jika ada, atur environment variable http_proxy."
+    echo ""
+    exit 1
 }
 
-setup_project() {
-    log_info "Menyiapkan project..."
+check_os() {
+    print_info "Memeriksa sistem operasi..."
     
-    mkdir -p "$PROJECT_DIR/data" "$PROJECT_DIR/logs"
-    chmod 755 "$PROJECT_DIR/data" "$PROJECT_DIR/logs"
-    
-    touch "$PROJECT_DIR/data/.gitkeep"
-    
-    if [ ! -f "$PROJECT_DIR/.env" ]; then
-        if [ -f "$PROJECT_DIR/.env.example" ]; then
-            cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
-            log_success ".env dibuat dari .env.example"
-            echo ""
-            echo -e "${YELLOW}⚠️  Edit .env dengan credentials Anda:${NC}"
-            echo -e "  ${BLUE}nano .env${NC}"
-            echo ""
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        if [[ "$ID" == "ubuntu" ]]; then
+            print_success "Sistem operasi: Ubuntu $VERSION_ID"
         else
-            log_error ".env.example tidak ditemukan!"
+            print_error "Sistem operasi tidak didukung. Hanya Ubuntu yang didukung."
+            echo "OS terdeteksi: $ID $VERSION_ID"
             exit 1
         fi
     else
-        log_success ".env sudah ada"
+        print_error "Tidak dapat mendeteksi sistem operasi."
+        exit 1
+    fi
+}
+
+# ============================================================
+# INSTALASI DEPENDENCY
+# ============================================================
+
+install_git() {
+    print_info "Memeriksa Git..."
+    
+    if command -v git &> /dev/null; then
+        local git_version=$(git --version | awk '{print $3}')
+        print_success "Git sudah terinstall (versi $git_version)"
+        return 0
     fi
     
-    chmod 600 "$PROJECT_DIR/.env"
+    print_info "Menginstall Git..."
+    apt-get update -qq
+    apt-get install -y -qq git
+    print_success "Git berhasil diinstall"
 }
+
+install_docker() {
+    print_info "Memeriksa Docker..."
+    
+    if command -v docker &> /dev/null; then
+        local docker_version=$(docker --version | awk '{print $3}' | sed 's/,//')
+        print_success "Docker sudah terinstall (versi $docker_version)"
+        return 0
+    fi
+    
+    print_info "Menginstall Docker..."
+    
+    # Hapus versi lama jika ada
+    apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+    
+    # Install prerequisite
+    apt-get update -qq
+    apt-get install -y -qq \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+    
+    # Tambahkan GPG key Docker
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    
+    # Tambahkan repository Docker
+    echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+        $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Install Docker
+    apt-get update -qq
+    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Start dan enable Docker
+    systemctl start docker
+    systemctl enable docker
+    
+    print_success "Docker berhasil diinstall"
+}
+
+install_docker_compose() {
+    print_info "Memeriksa Docker Compose..."
+    
+    if command -v docker compose &> /dev/null; then
+        local compose_version=$(docker compose version --short 2>/dev/null || echo "unknown")
+        print_success "Docker Compose sudah terinstall (versi $compose_version)"
+        return 0
+    fi
+    
+    print_info "Docker Compose sudah terinstall sebagai plugin Docker"
+    print_success "Docker Compose siap digunakan"
+}
+
+# ============================================================
+# CLONE REPOSITORY
+# ============================================================
+
+clone_repository() {
+    print_info "Memeriksa repository..."
+    
+    if [[ -d "$INSTALL_DIR/.git" ]]; then
+        print_success "Repository sudah ada di $INSTALL_DIR"
+        return 0
+    fi
+    
+    print_info "Meng-clone repository ke $INSTALL_DIR..."
+    mkdir -p "$(dirname "$INSTALL_DIR")"
+    git clone https://github.com/RinaPython/Telegram-Finance-Bot.git "$INSTALL_DIR"
+    print_success "Repository berhasil di-clone"
+}
+
+# ============================================================
+# KONFIGURASI .ENV
+# ============================================================
+
+setup_env() {
+    print_info "Memeriksa file .env..."
+    
+    local env_file="$INSTALL_DIR/.env"
+    
+    if [[ -f "$env_file" ]]; then
+        print_success "File .env sudah ada, tidak akan ditimpa"
+        return 0
+    fi
+    
+    if [[ -f "$INSTALL_DIR/.env.example" ]]; then
+        print_info "Membuat file .env dari .env.example..."
+        cp "$INSTALL_DIR/.env.example" "$env_file"
+        print_success "File .env berhasil dibuat"
+        echo ""
+        echo "⚠️  PERHATIAN: File .env telah dibuat di $env_file"
+        echo "   Silakan isi dengan kredensial Anda sebelum menjalankan bot:"
+        echo "   nano $env_file"
+        echo ""
+    else
+        print_error "File .env.example tidak ditemukan!"
+        exit 1
+    fi
+}
+
+# ============================================================
+# PERSIAPAN DIREKTORI
+# ============================================================
+
+setup_directories() {
+    print_info "Menyiapkan direktori data dan logs..."
+    
+    mkdir -p "$INSTALL_DIR/data"
+    mkdir -p "$INSTALL_DIR/logs"
+    
+    chmod 755 "$INSTALL_DIR/data"
+    chmod 755 "$INSTALL_DIR/logs"
+    
+    print_success "Direktori data dan logs siap"
+}
+
+# ============================================================
+# INSTALASI DASHBOARD
+# ============================================================
 
 install_dashboard() {
-    log_info "Memasang dashboard..."
+    print_info "Menginstall Dashboard VPS..."
     
-    if [ -f "$PROJECT_DIR/scripts/install-dashboard.sh" ]; then
-        bash "$PROJECT_DIR/scripts/install-dashboard.sh"
-    else
-        log_warning "install-dashboard.sh tidak ditemukan, melewati..."
-    fi
-}
-
-build_and_deploy() {
-    log_info "Membangun Docker image..."
-    cd "$PROJECT_DIR"
-    
-    if docker compose build --no-cache 2>&1 | tee -a "$LOG_FILE"; then
-        log_success "Docker build selesai"
-    else
-        log_error "Docker build gagal"
-        exit 1
+    if [[ -f "/usr/local/bin/finance-dashboard" ]]; then
+        print_success "Dashboard sudah terinstall"
+        return 0
     fi
     
-    log_info "Menjalankan container..."
-    if docker compose up -d 2>&1 | tee -a "$LOG_FILE"; then
-        log_success "Container berjalan"
+    local dashboard_script="$INSTALL_DIR/scripts/install-dashboard.sh"
+    
+    if [[ -f "$dashboard_script" ]]; then
+        bash "$dashboard_script"
+        print_success "Dashboard berhasil diinstall"
     else
-        log_error "Gagal menjalankan container"
+        print_error "Script dashboard tidak ditemukan: $dashboard_script"
         exit 1
     fi
 }
 
-health_check() {
-    log_info "Melakukan health check..."
+# ============================================================
+# BUILD & START BOT
+# ============================================================
+
+build_and_start_bot() {
+    print_info "Membangun dan menjalankan bot..."
+    
+    cd "$INSTALL_DIR"
+    
+    # Cek apakah .env sudah diisi (minimal TELEGRAM_TOKEN tidak kosong)
+    if [[ -f ".env" ]]; then
+        if grep -q "^TELEGRAM_TOKEN=.*[^[:space:]]" .env 2>/dev/null; then
+            print_success "File .env terdeteksi dengan TELEGRAM_TOKEN"
+        else
+            print_info "File .env belum diisi dengan TELEGRAM_TOKEN"
+            print_info "Bot akan menunggu sampai .env dikonfigurasi"
+        fi
+    fi
+    
+    # Build image
+    print_info "Membangun image Docker..."
+    if docker compose build --no-cache; then
+        print_success "Image Docker berhasil dibangun"
+    else
+        print_error "Gagal membangun image Docker"
+        exit 1
+    fi
+    
+    # Start container dengan restart policy
+    print_info "Menjalankan container..."
+    
+    # Pastikan restart policy di docker-compose.yml
+    if ! grep -q "restart:" "$INSTALL_DIR/docker-compose.yml"; then
+        print_info "Menambahkan restart policy ke docker-compose.yml..."
+        sed -i '/^services:/,/^[^ ]/ { /finance-bot:/,/^[^ ]/ s/\(^[[:space:]]*\)container_name:/\1restart: unless-stopped\n\1container_name:/ }' "$INSTALL_DIR/docker-compose.yml"
+    fi
+    
+    if docker compose up -d; then
+        print_success "Container berhasil dijalankan"
+    else
+        print_error "Gagal menjalankan container"
+        exit 1
+    fi
+    
+    # Health check
+    print_info "Menunggu bot siap..."
     sleep 10
     
-    if docker ps --format "{{.Names}}" | grep -q "finance-bot"; then
-        log_success "Container berjalan"
-        
-        HEALTH=$(docker inspect --format='{{.State.Health.Status}}' finance-bot 2>/dev/null)
-        if [ "$HEALTH" = "healthy" ]; then
-            log_success "Health status: HEALTHY"
-        else
-            log_warning "Health status: $HEALTH (menunggu...)"
-        fi
+    if docker compose ps | grep -q "Up"; then
+        print_success "Bot berjalan dengan status: RUNNING"
     else
-        log_error "Container tidak berjalan"
-        exit 1
+        print_error "Bot tidak berjalan dengan normal. Periksa log:"
+        echo "  docker compose -f $INSTALL_DIR/docker-compose.yml logs --tail=50"
     fi
 }
 
-show_results() {
-    echo ""
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC} ${GREEN}${BOLD}              DEPLOYMENT COMPLETE ✅${NC}${CYAN}                           ║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+# ============================================================
+# AUTO START SETELAH REBOOT
+# ============================================================
+
+setup_autostart() {
+    print_info "Mengatur auto-start setelah reboot..."
     
-    echo -e "${GREEN}[✓]${NC} Docker: ${WHITE}$(docker --version 2>/dev/null | head -1)${NC}"
-    echo -e "${GREEN}[✓]${NC} Docker Compose: ${WHITE}$(docker-compose --version 2>/dev/null || echo "terinstall")${NC}"
-    echo -e "${GREEN}[✓]${NC} Container: ${WHITE}$(docker ps --format "{{.Names}}" --filter "name=finance-bot" 2>/dev/null || echo "N/A")${NC}"
-    echo -e "${GREEN}[✓]${NC} Bot: ${WHITE}$(docker ps --format "{{.Status}}" --filter "name=finance-bot" 2>/dev/null || echo "N/A")${NC}"
-    echo ""
+    # Docker sudah di-enable oleh systemd
+    # Container memiliki restart: unless-stopped di compose
     
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo -e "${WHITE}📋 ${BOLD}COMMANDS${NC}"
-    echo ""
-    echo -e "  ${BLUE}finance-dashboard${NC}   - Buka dashboard management"
-    echo -e "  ${BLUE}docker compose logs -f${NC}  - Lihat log real-time"
-    echo -e "  ${BLUE}docker compose restart${NC}  - Restart bot"
-    echo -e "  ${BLUE}docker compose down${NC}     - Stop bot"
-    echo -e "  ${BLUE}docker compose up -d${NC}    - Start bot"
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo -e "${GREEN}BOT SIAP DIGUNAKAN!${NC} 🚀"
-    echo ""
+    print_success "Auto-start telah dikonfigurasi"
+    echo "  - Docker: systemd enabled"
+    echo "  - Bot: restart policy 'unless-stopped'"
 }
+
+# ============================================================
+# FUNGSI UTAMA
+# ============================================================
 
 main() {
-    print_banner
+    clear
+    print_header "🔄 INSTALASI VPS - TELEGRAM FINANCE BOT"
+    echo ""
+    echo "Direktori instalasi: $INSTALL_DIR"
+    echo ""
     
-    log_info "Memulai instalasi pada $(date)"
+    # Pemeriksaan prasyarat
+    check_sudo
+    check_internet
+    check_os
     
-    check_system
+    echo ""
+    print_header "📦 INSTALASI DEPENDENCY"
+    echo ""
+    install_git
     install_docker
-    setup_project
+    install_docker_compose
     
     echo ""
-    echo -e "${YELLOW}⚠️  Pastikan .env sudah dikonfigurasi dengan credentials Anda${NC}"
-    echo -e "${WHITE}  Edit: ${BLUE}nano .env${NC}"
+    print_header "📁 PERSIAPAN PROJECT"
     echo ""
-    echo -ne "${WHITE}Lanjutkan instalasi? [y/N]: ${NC}"
-    read confirm
+    clone_repository
+    setup_env
+    setup_directories
     
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        log_info "Instalasi dibatalkan"
-        exit 0
+    echo ""
+    print_header "🖥️ INSTALASI DASHBOARD"
+    echo ""
+    install_dashboard
+    
+    echo ""
+    print_header "🐳 BUILD & START BOT"
+    echo ""
+    build_and_start_bot
+    
+    echo ""
+    print_header "🔄 AUTO-START SETELAH REBOOT"
+    echo ""
+    setup_autostart
+    
+    echo ""
+    print_header "✅ INSTALASI SELESAI"
+    echo ""
+    echo "📋 INFORMASI PENTING:"
+    echo ""
+    echo "1. Konfigurasi .env:"
+    echo "   nano $INSTALL_DIR/.env"
+    echo ""
+    echo "2. Jalankan dashboard:"
+    echo "   finance-dashboard"
+    echo ""
+    echo "3. Atau manage bot manual:"
+    echo "   cd $INSTALL_DIR"
+    echo "   docker compose ps          # Cek status"
+    echo "   docker compose logs -f     # Lihat log"
+    echo "   docker compose restart     # Restart bot"
+    echo ""
+    echo "4. Bot akan otomatis berjalan setelah VPS reboot"
+    echo ""
+    
+    # Tampilkan status bot
+    echo -e "${BLUE}📊 STATUS BOT:${NC}"
+    cd "$INSTALL_DIR"
+    if docker compose ps 2>/dev/null; then
+        echo ""
+        echo -e "${GREEN}✅ Bot berjalan dengan normal${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Bot belum berjalan. Periksa .env dan jalankan:${NC}"
+        echo "   cd $INSTALL_DIR && docker compose up -d"
     fi
     
-    install_dashboard
-    build_and_deploy
-    health_check
-    show_results
-    
-    log_info "Instalasi selesai pada $(date)"
+    echo ""
+    echo -e "${GREEN}Terima kasih telah menggunakan Telegram Finance Bot! 🚀${NC}"
+    echo ""
 }
 
-main "$@"
+# ============================================================
+# EKSEKUSI
+# ============================================================
+
+main
