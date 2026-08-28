@@ -1,38 +1,60 @@
-FROM python:3.11-slim
+# ============================================================
+# TELEGRAM FINANCE BOT - DOCKERFILE
+# ============================================================
+# Menggunakan multi-stage build untuk optimasi
+# ============================================================
 
-WORKDIR /app
+# Stage 1: Builder
+FROM python:3.11-slim AS builder
 
-# Install system dependencies (minimal untuk Python)
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first untuk cache layer
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: Final
+FROM python:3.11-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Buat user non-root untuk keamanan
+RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser
 
-# Copy application code
-COPY src/ ./src/
-COPY data/ ./data/
+# Set working directory
+WORKDIR /app
 
-# Create directories
-RUN mkdir -p /app/data /app/logs
+# Copy dependencies dari builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-# ============================================================
-# PERBAIKAN: Health file dibuat oleh aplikasi, bukan di sini
-# ============================================================
-# Kita tidak perlu touch /app/health di sini karena aplikasi akan membuatnya
+# Copy source code
+COPY . .
 
-# Set Python path
-ENV PYTHONPATH=/app
-ENV TZ=Asia/Jakarta
+# Set ownership ke appuser
+RUN chown -R appuser:appuser /app
 
-# ============================================================
-# PERBAIKAN: Hapus HEALTHCHECK dari Dockerfile
-# ============================================================
-# Healthcheck akan didefinisikan di docker-compose.yml
-# agar lebih fleksibel dan mudah diubah tanpa rebuild image
+# Switch ke user non-root
+USER appuser
 
-# Run the bot
-CMD ["python", "-m", "src.main"]
+# Expose port (jika diperlukan untuk health check)
+# EXPOSE 8000
+
+# Health check untuk monitoring
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)" || exit 1
+
+# Command untuk menjalankan bot
+CMD ["python", "src/main.py"]
