@@ -1,33 +1,154 @@
 #!/bin/bash
 
 # ============================================================
-# FINANCE BOT — DASHBOARD INSTALLER
-# Version: 1.0.0
+# TELEGRAM FINANCE BOT - INSTALASI DASHBOARD VPS
+# ============================================================
+# Script ini menginstall dashboard interaktif untuk mengelola
+# bot dari terminal.
+#
+# Penggunaan:
+#   sudo bash scripts/install-dashboard.sh
 # ============================================================
 
-CYAN='\033[0;36m'
+set -Eeuo pipefail
+
+# ============================================================
+# VARIABEL GLOBAL
+# ============================================================
+
+# Direktori instalasi (harus sama dengan install-vps.sh)
+INSTALL_DIR="/opt/Telegram-Finance-Bot"
+
+# Warna untuk output
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-DASHBOARD_SRC="$PROJECT_DIR/dashboard/finance-dashboard.sh"
-DASHBOARD_DEST="/usr/local/bin/finance-dashboard"
+# ============================================================
+# FUNGSI UTILITY
+# ============================================================
 
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}📊 Installing Finance Dashboard...${NC}"
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+print_header() {
+    echo -e "${BLUE}============================================================${NC}"
+    echo -e "${BLUE}$1${NC}"
+    echo -e "${BLUE}============================================================${NC}"
+}
 
-if [ -f "$DASHBOARD_SRC" ]; then
-    cp "$DASHBOARD_SRC" "$DASHBOARD_DEST"
-    chmod +x "$DASHBOARD_DEST"
-    echo -e "${GREEN}✅ Dashboard installed to: $DASHBOARD_DEST${NC}"
-    echo -e "${GREEN}✅ Run: ${WHITE}finance-dashboard${NC}"
-else
-    echo -e "${RED}❌ Dashboard source not found: $DASHBOARD_SRC${NC}"
-    exit 1
-fi
+print_error() {
+    echo -e "${RED}[✗] ERROR: $1${NC}"
+}
 
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+print_success() {
+    echo -e "${GREEN}[✓] $1${NC}"
+}
+
+print_info() {
+    echo -e "${YELLOW}[INFO] $1${NC}"
+}
+
+# ============================================================
+# CEK HAK SUDO
+# ============================================================
+
+check_sudo() {
+    print_info "Memeriksa hak akses root/sudo..."
+    
+    if [[ $EUID -ne 0 ]]; then
+        print_error "Script ini HARUS dijalankan dengan sudo atau sebagai root."
+        exit 1
+    fi
+    
+    print_success "Hak akses root/sudo terkonfirmasi"
+}
+
+# ============================================================
+# CEK IDEMPOTENCY
+# ============================================================
+
+check_idempotent() {
+    if [[ -f "/usr/local/bin/finance-dashboard" ]]; then
+        print_success "Dashboard sudah terinstall di /usr/local/bin/finance-dashboard"
+        print_info "Melewati proses instalasi"
+        return 1
+    fi
+    return 0
+}
+
+# ============================================================
+# INSTALASI DASHBOARD
+# ============================================================
+
+install_dashboard() {
+    print_info "Menginstall Dashboard VPS..."
+    
+    local dashboard_source="$INSTALL_DIR/dashboard/finance-dashboard.sh"
+    local dashboard_target="/usr/local/bin/finance-dashboard"
+    
+    # Pastikan source file ada
+    if [[ ! -f "$dashboard_source" ]]; then
+        print_error "File dashboard tidak ditemukan: $dashboard_source"
+        exit 1
+    fi
+    
+    # Copy dashboard ke /usr/local/bin
+    cp "$dashboard_source" "$dashboard_target"
+    
+    # Set permission executable
+    chmod 755 "$dashboard_target"
+    
+    print_success "Dashboard berhasil diinstall ke $dashboard_target"
+}
+
+# ============================================================
+# VERIFIKASI
+# ============================================================
+
+verify_installation() {
+    print_info "Memverifikasi instalasi..."
+    
+    if [[ -x "/usr/local/bin/finance-dashboard" ]]; then
+        print_success "Dashboard siap digunakan"
+        echo ""
+        echo "Untuk menjalankan dashboard, ketik:"
+        echo -e "${GREEN}finance-dashboard${NC}"
+        echo ""
+    else
+        print_error "Dashboard tidak dapat dieksekusi"
+        exit 1
+    fi
+}
+
+# ============================================================
+# FUNGSI UTAMA
+# ============================================================
+
+main() {
+    clear
+    print_header "🖥️ INSTALASI DASHBOARD VPS"
+    echo ""
+    
+    # Pemeriksaan prasyarat
+    check_sudo
+    
+    # Cek idempotency
+    if check_idempotent; then
+        # Proses instalasi
+        install_dashboard
+        verify_installation
+    else
+        echo ""
+        print_success "Dashboard sudah siap digunakan"
+        echo ""
+        echo "Untuk menjalankan dashboard, ketik:"
+        echo -e "${GREEN}finance-dashboard${NC}"
+        echo ""
+    fi
+}
+
+# ============================================================
+# EKSEKUSI
+# ============================================================
+
+main
