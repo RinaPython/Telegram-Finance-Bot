@@ -1,71 +1,88 @@
 #!/bin/bash
+# ============================================================
+# TELEGRAM FINANCE BOT - HEALTH CHECK
+# ============================================================
 
-# ============================================================
-# FINANCE BOT — HEALTH CHECK SCRIPT
-# Version: 1.0.0
-# ============================================================
+set -Eeuo pipefail
+
+INSTALL_DIR="/opt/Telegram-Finance-Bot"
+CONTAINER_NAME="finance-bot"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
-WHITE='\033[1;37m'
 NC='\033[0m'
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$PROJECT_DIR" || exit 1
+check_docker() {
+    if ! systemctl is-active --quiet docker; then
+        echo -e "${RED}✗ Docker: TIDAK BERJALAN${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}✓ Docker: BERJALAN${NC}"
+    return 0
+}
 
-echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${WHITE}🏥 FINANCE BOT — HEALTH CHECK${NC}"
-echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
+check_container() {
+    if docker ps --format "{{.Names}}" 2>/dev/null | grep -q "$CONTAINER_NAME"; then
+        local status=$(docker inspect --format='{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null)
+        local health=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_NAME" 2>/dev/null)
+        echo -e "${GREEN}✓ Container: $CONTAINER_NAME ($status)${NC}"
+        if [[ "$health" == "healthy" ]]; then
+            echo -e "${GREEN}✓ Health: SEHAT${NC}"
+        elif [[ "$health" == "unhealthy" ]]; then
+            echo -e "${RED}✗ Health: TIDAK SEHAT${NC}"
+            return 1
+        fi
+        return 0
+    fi
+    echo -e "${YELLOW}⚠ Container: TIDAK BERJALAN${NC}"
+    return 1
+}
 
-echo -n "  Docker: "
-if docker ps &>/dev/null; then
-    echo -e "${GREEN}RUNNING${NC}"
-else
-    echo -e "${RED}STOPPED${NC}"
-    exit 1
-fi
+check_env() {
+    local env_file="$INSTALL_DIR/.env"
+    if [[ ! -f "$env_file" ]]; then
+        echo -e "${YELLOW}⚠ .env: TIDAK DITEMUKAN${NC}"
+        return 1
+    fi
+    
+    set -a
+    source "$env_file"
+    set +a
+    
+    local missing=()
+    for var in TELEGRAM_TOKEN AUTHORIZED_USER_ID GEMINI_API_KEY; do
+        if [[ -z "${!var:-}" ]]; then
+            missing+=("$var")
+        fi
+    done
+    
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        echo -e "${GREEN}✓ .env: LENGKAP${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}⚠ .env: BELUM LENGKAP (${missing[*]})${NC}"
+        return 1
+    fi
+}
 
-echo -n "  Container: "
-if docker ps --format "{{.Names}}" 2>/dev/null | grep -q "finance-bot"; then
-    echo -e "${GREEN}RUNNING${NC}"
-else
-    echo -e "${RED}STOPPED${NC}"
-    exit 1
-fi
+main() {
+    echo "=== HEALTH CHECK: Telegram Finance Bot ==="
+    echo ""
+    
+    local status=0
+    check_docker || status=1
+    check_container || status=1
+    check_env || status=1
+    
+    echo ""
+    if [[ $status -eq 0 ]]; then
+        echo -e "${GREEN}✅ SEMUA SISTEM SEHAT${NC}"
+    else
+        echo -e "${YELLOW}⚠ BEBERAPA KOMPONEN BERMASALAH${NC}"
+    fi
+    
+    exit $status
+}
 
-echo -n "  Health: "
-HEALTH=$(docker inspect --format='{{.State.Health.Status}}' finance-bot 2>/dev/null)
-if [ "$HEALTH" = "healthy" ]; then
-    echo -e "${GREEN}HEALTHY${NC}"
-elif [ "$HEALTH" = "unhealthy" ]; then
-    echo -e "${RED}UNHEALTHY${NC}"
-    exit 1
-else
-    echo -e "${YELLOW}$HEALTH${NC}"
-fi
-
-echo -n "  Restarts: "
-RESTARTS=$(docker inspect --format='{{.RestartCount}}' finance-bot 2>/dev/null)
-echo -e "${WHITE}$RESTARTS${NC}"
-
-echo -n "  Uptime: "
-UPTIME=$(docker ps --format "{{.Status}}" --filter "name=finance-bot" 2>/dev/null)
-echo -e "${WHITE}${UPTIME:-N/A}${NC}"
-
-echo -n "  Telegram API: "
-if curl -s -o /dev/null -w "%{http_code}" https://api.telegram.org | grep -q "200"; then
-    echo -e "${GREEN}REACHABLE${NC}"
-else
-    echo -e "${YELLOW}UNREACHABLE${NC}"
-fi
-
-echo ""
-echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-
-if [ "$HEALTH" = "healthy" ]; then
-    exit 0
-else
-    exit 1
-fi
+main
