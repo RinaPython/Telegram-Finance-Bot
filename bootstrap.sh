@@ -1,265 +1,190 @@
-#!/usr/bin/env bash
-
+#!/bin/bash
 # ============================================================
-# TELEGRAM FINANCE BOT - BOOTSTRAP INSTALLER
+# TELEGRAM FINANCE BOT - BOOTSTRAP INSTALLER v2.0
 # ============================================================
-# Fungsi:
-#   - Install Git jika belum ada
-#   - Clone repository
-#   - Menjalankan install-vps.sh
-#
-# Jalankan:
+# Penggunaan:
 #   curl -fsSL https://raw.githubusercontent.com/RinaPython/Telegram-Finance-Bot/main/scripts/bootstrap.sh | sudo bash
 # ============================================================
 
 set -Eeuo pipefail
 
-REPO_URL="https://github.com/RinaPython/Telegram-Finance-Bot.git"
-PROJECT_NAME="Telegram-Finance-Bot"
-INSTALL_DIR="/opt/${PROJECT_NAME}"
-
-CYAN='\033[0;36m'
+# Warna
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-RED='\033[0;31m'
-WHITE='\033[1;37m'
-BOLD='\033[1m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
-info() {
-    echo -e "${CYAN}[INFO]${NC} $1"
+INSTALL_DIR="/opt/Telegram-Finance-Bot"
+
+print_header() {
+    echo -e "${BLUE}============================================================${NC}"
+    echo -e "${BLUE}$1${NC}"
+    echo -e "${BLUE}============================================================${NC}"
 }
 
-success() {
-    echo -e "${GREEN}[✓]${NC} $1"
-}
+print_error() { echo -e "${RED}[✗] ERROR: $1${NC}"; }
+print_success() { echo -e "${GREEN}[✓] $1${NC}"; }
+print_info() { echo -e "${YELLOW}[INFO] $1${NC}"; }
+print_warning() { echo -e "${YELLOW}[⚠] $1${NC}"; }
 
-warning() {
-    echo -e "${YELLOW}[!]${NC} $1"
-}
+# ============================================================
+# CEK PRASYARAT
+# ============================================================
 
-error() {
-    echo -e "${RED}[✗]${NC} $1"
-}
-
-banner() {
-    clear 2>/dev/null || true
-
-    echo -e "${CYAN}"
-    echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║                                                              ║"
-    echo "║              💰 TELEGRAM FINANCE BOT                        ║"
-    echo "║                  VPS INSTALLER                              ║"
-    echo "║                                                              ║"
-    echo "╚══════════════════════════════════════════════════════════════╝"
-    echo -e "${NC}"
-
-    echo -e "${WHITE}${BOLD}Automatic VPS Installation${NC}"
-    echo ""
-}
-
-check_root() {
-    if [ "${EUID}" -ne 0 ]; then
-        error "Script harus dijalankan sebagai root."
-        echo ""
-        echo "Gunakan:"
-        echo "sudo bash"
+check_sudo() {
+    if [[ $EUID -ne 0 ]]; then
+        print_error "Script ini HARUS dijalankan dengan sudo atau sebagai root."
         exit 1
     fi
-
-    success "Hak akses root: OK"
-}
-
-check_os() {
-    if [ ! -f /etc/os-release ]; then
-        error "Tidak dapat mendeteksi sistem operasi."
-        exit 1
-    fi
-
-    . /etc/os-release
-
-    echo ""
-    info "Sistem operasi: ${PRETTY_NAME}"
-
-    case "${ID}" in
-        ubuntu|debian)
-            success "OS didukung"
-            ;;
-        *)
-            warning "OS ${ID} belum diuji secara khusus."
-            warning "Installer akan tetap mencoba melanjutkan."
-            ;;
-    esac
+    print_success "Hak akses root/sudo terkonfirmasi"
 }
 
 check_internet() {
-    info "Memeriksa koneksi internet..."
-
-    if curl -fsS --connect-timeout 10 https://github.com >/dev/null; then
-        success "Koneksi internet: OK"
-    else
-        error "Tidak dapat terhubung ke GitHub."
-        exit 1
-    fi
-}
-
-install_git() {
-    if command -v git >/dev/null 2>&1; then
-        success "Git sudah terinstall: $(git --version)"
-        return
-    fi
-
-    info "Git belum terinstall. Menginstall Git..."
-
-    export DEBIAN_FRONTEND=noninteractive
-
-    if command -v apt-get >/dev/null 2>&1; then
-        apt-get update
-        apt-get install -y git
-    else
-        error "Package manager apt-get tidak ditemukan."
-        exit 1
-    fi
-
-    success "Git berhasil diinstall"
-}
-
-clone_repository() {
-
-    echo ""
-    info "Menyiapkan repository..."
-
-    if [ -d "${INSTALL_DIR}/.git" ]; then
-        success "Repository sudah ada di:"
-        echo "  ${INSTALL_DIR}"
-
-        cd "${INSTALL_DIR}"
-
-        info "Mengambil perubahan terbaru dari GitHub..."
-
-        git fetch origin
-        git reset --hard origin/main
-
-        success "Repository berhasil diperbarui."
-
-    elif [ -d "${INSTALL_DIR}" ] && [ "$(ls -A "${INSTALL_DIR}" 2>/dev/null)" ]; then
-
-        error "Folder ${INSTALL_DIR} sudah ada dan tidak kosong."
-        echo ""
-        echo "Installer tidak akan menghapus data secara otomatis."
-        echo ""
-        echo "Jika folder tersebut memang tidak diperlukan,"
-        echo "hapus/rename secara manual lalu jalankan kembali."
-        exit 1
-
-    else
-
-        info "Clone repository dari GitHub..."
-
-        mkdir -p "$(dirname "${INSTALL_DIR}")"
-
-        git clone --branch main "${REPO_URL}" "${INSTALL_DIR}"
-
-        success "Repository berhasil di-clone."
-
-    fi
-}
-
-verify_repository() {
-
-    cd "${INSTALL_DIR}"
-
-    echo ""
-    info "Memeriksa struktur project..."
-
-    REQUIRED_FILES=(
-        ".env.example"
-        "Dockerfile"
-        "docker-compose.yml"
-        "requirements.txt"
-        "scripts/install-vps.sh"
-        "scripts/install-dashboard.sh"
+    print_info "Memeriksa koneksi internet..."
+    local test_urls=(
+        "https://github.com"
+        "https://raw.githubusercontent.com"
+        "https://api.github.com"
+        "https://www.google.com"
     )
-
-    for FILE in "${REQUIRED_FILES[@]}"; do
-        if [ -f "${FILE}" ]; then
-            success "${FILE}"
-        else
-            error "File tidak ditemukan: ${FILE}"
-            exit 1
+    for url in "${test_urls[@]}"; do
+        if curl -4 -sSf --connect-timeout 5 --max-time 10 -o /dev/null "$url" 2>/dev/null; then
+            print_success "Koneksi internet: OK (${url})"
+            return 0
         fi
     done
-
-    success "Struktur repository valid."
+    print_error "Koneksi internet: GAGAL"
+    echo "Diagnostik: Periksa DNS, Firewall (port 443), atau Proxy."
+    exit 1
 }
 
-prepare_permissions() {
-
-    cd "${INSTALL_DIR}"
-
-    chmod +x scripts/*.sh 2>/dev/null || true
-
-    success "Permission script diperbaiki."
+check_os() {
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        if [[ "$ID" == "ubuntu" ]]; then
+            print_success "Sistem operasi: Ubuntu $VERSION_ID"
+        else
+            print_error "Hanya Ubuntu yang didukung. Terdeteksi: $ID"
+            exit 1
+        fi
+    else
+        print_error "Tidak dapat mendeteksi sistem operasi."
+        exit 1
+    fi
 }
 
-run_installer() {
+# ============================================================
+# VALIDASI .ENV
+# ============================================================
 
-    cd "${INSTALL_DIR}"
-
-    echo ""
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC} ${GREEN}${BOLD}MENJALANKAN INSTALLER VPS${NC}                              ${CYAN}║${NC}"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-
-    bash scripts/install-vps.sh
+validate_env() {
+    local env_file="$INSTALL_DIR/.env"
+    local missing=()
+    local required_vars=("TELEGRAM_TOKEN" "AUTHORIZED_USER_ID" "GEMINI_API_KEY")
+    
+    if [[ ! -f "$env_file" ]]; then
+        print_warning "File .env belum dibuat"
+        return 1
+    fi
+    
+    # Source file .env untuk membaca nilai
+    set -a
+    source "$env_file"
+    set +a
+    
+    for var in "${required_vars[@]}"; do
+        if [[ -z "${!var:-}" ]]; then
+            missing+=("$var")
+        fi
+    done
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        print_warning "Konfigurasi .env BELUM LENGKAP"
+        echo "  Variabel yang hilang:"
+        for m in "${missing[@]}"; do
+            echo "    - $m"
+        done
+        return 1
+    fi
+    
+    print_success "✅ Semua konfigurasi .env LENGKAP"
+    return 0
 }
 
-show_final_info() {
-
-    echo ""
-    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║${NC} ${WHITE}${BOLD}          TELEGRAM FINANCE BOT SIAP! 🚀${NC}                 ${GREEN}║${NC}"
-    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-
-    echo -e "${WHITE}Project:${NC}"
-    echo "  ${INSTALL_DIR}"
-    echo ""
-
-    echo -e "${WHITE}Dashboard:${NC}"
-    echo "  finance-dashboard"
-    echo ""
-
-    echo -e "${WHITE}Melihat status:${NC}"
-    echo "  cd ${INSTALL_DIR}"
-    echo "  docker compose ps"
-    echo ""
-
-    echo -e "${WHITE}Melihat log:${NC}"
-    echo "  cd ${INSTALL_DIR}"
-    echo "  docker compose logs -f"
-    echo ""
-
-    echo -e "${WHITE}Restart bot:${NC}"
-    echo "  cd ${INSTALL_DIR}"
-    echo "  docker compose restart"
-    echo ""
-}
+# ============================================================
+# INSTALASI UTAMA
+# ============================================================
 
 main() {
+    clear
+    print_header "🚀 TELEGRAM FINANCE BOT - INSTALASI OTOMATIS v2.0"
+    echo ""
 
-    banner
-
-    check_root
-    check_os
+    check_sudo
     check_internet
-    install_git
-    clone_repository
-    verify_repository
-    prepare_permissions
-    run_installer
-    show_final_info
+    check_os
+
+    echo ""
+    print_info "Memulai instalasi VPS..."
+
+    # Clone/Update repository
+    if [[ ! -d "$INSTALL_DIR" ]]; then
+        print_info "Meng-clone repository ke $INSTALL_DIR..."
+        git clone https://github.com/RinaPython/Telegram-Finance-Bot.git "$INSTALL_DIR"
+        print_success "Repository berhasil di-clone"
+    else
+        print_info "Repository sudah ada, memperbarui..."
+        cd "$INSTALL_DIR"
+        git pull --ff-only || print_warning "Gagal pull, melanjutkan..."
+    fi
+
+    # Jalankan install-vps.sh
+    if [[ -f "$INSTALL_DIR/scripts/install-vps.sh" ]]; then
+        bash "$INSTALL_DIR/scripts/install-vps.sh"
+    else
+        print_error "File install-vps.sh tidak ditemukan!"
+        exit 1
+    fi
+
+    # Validasi .env setelah instalasi
+    echo ""
+    print_header "📋 VALIDASI KONFIGURASI"
+    
+    if validate_env; then
+        # .env LENGKAP - Start bot
+        echo ""
+        print_info "Menjalankan Finance Bot..."
+        cd "$INSTALL_DIR"
+        if docker compose up -d; then
+            print_success "✅ Finance Bot berhasil dijalankan"
+        else
+            print_error "Gagal menjalankan Finance Bot"
+        fi
+    else
+        # .env BELUM LENGKAP - Dashboard only
+        echo ""
+        print_warning "Finance Bot TIDAK dijalankan karena konfigurasi belum lengkap."
+        echo ""
+        echo -e "${GREEN}✅ Finance Dashboard: TERINSTALL & AKTIF${NC}"
+        echo -e "${YELLOW}⏸️  Finance Bot: MENUNGGU KONFIGURASI .env${NC}"
+        echo ""
+        print_info "Langkah selanjutnya:"
+        echo "  1. Isi file .env: nano $INSTALL_DIR/.env"
+        echo "  2. Jalankan dashboard: finance-dashboard"
+        echo "  3. Setelah .env lengkap, start bot: cd $INSTALL_DIR && docker compose up -d"
+    fi
+
+    echo ""
+    print_header "✅ INSTALASI SELESAI"
+    echo ""
+    echo -e "${GREEN}Dashboard:${NC} finance-dashboard"
+    echo -e "${GREEN}Direktori:${NC} $INSTALL_DIR"
+    echo ""
 }
 
-main "$@"
+# ============================================================
+# EKSEKUSI
+# ============================================================
+
+main
