@@ -5,12 +5,22 @@
 
 set -Eeuo pipefail
 
-INSTALL_DIR="/opt/Telegram-Finance-Bot"
+# ============================================================
+# KONFIGURASI
+# ============================================================
 
-RED='\033[0;31m'
+INSTALL_DIR="/opt/Telegram-Finance-Bot"
+TARGET="/usr/local/bin/finance-dashboard"
+
+# Warna
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
+
+# ============================================================
+# FUNGSI
+# ============================================================
 
 print_error() { echo -e "${RED}[✗] ERROR: $1${NC}"; }
 print_success() { echo -e "${GREEN}[✓] $1${NC}"; }
@@ -25,27 +35,31 @@ check_sudo() {
 
 install_dashboard() {
     # Idempotent check
-    if [[ -f "/usr/local/bin/finance-dashboard" ]]; then
-        print_success "Dashboard sudah terinstall di /usr/local/bin/finance-dashboard"
+    if [[ -f "$TARGET" ]]; then
+        print_success "Dashboard sudah terinstall di $TARGET"
         return 0
     fi
     
     print_info "Menginstall Finance Dashboard..."
     
     local source_file="$INSTALL_DIR/dashboard/finance-dashboard.sh"
-    local target_file="/usr/local/bin/finance-dashboard"
     
     if [[ ! -f "$source_file" ]]; then
         print_error "File dashboard tidak ditemukan: $source_file"
         exit 1
     fi
     
-    cp "$source_file" "$target_file"
-    chmod 755 "$target_file"
+    # Copy dan set permission
+    cp "$source_file" "$TARGET"
+    chmod 755 "$TARGET"
     
-    print_success "Dashboard berhasil diinstall ke $target_file"
+    print_success "Dashboard berhasil diinstall ke $TARGET"
     print_info "Untuk menjalankan: finance-dashboard"
 }
+
+# ============================================================
+# EKSEKUSI
+# ============================================================
 
 main() {
     check_sudo
