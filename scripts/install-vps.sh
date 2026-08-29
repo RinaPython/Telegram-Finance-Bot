@@ -244,6 +244,8 @@ main() {
     echo "  - Finance Dashboard: ✅ TERINSTALL"
     echo "  - Finance Bot: ⏸️ BELUM DIJALANKAN (menunggu .env lengkap)"
     echo ""
+    echo "⚠️  JANGAN build/start bot di sini - ini tugas bootstrap.sh"
+    echo ""
 }
 
 # ============================================================
