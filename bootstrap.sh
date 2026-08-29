@@ -235,7 +235,7 @@ start_bot() {
 }
 
 # ============================================================
-# REBOOT (OPSIONAL, TIDAK PAKSA)
+# REBOOT (OPSIONAL)
 # ============================================================
 
 ask_reboot() {
@@ -278,7 +278,9 @@ main() {
     
     # Validasi .env
     if validate_env; then
-        # .env LENGKAP - Build & Start Bot
+        # ============================================================
+        # BRANCH: .env LENGKAP → Build & Start Bot
+        # ============================================================
         echo ""
         start_bot
         
@@ -301,7 +303,9 @@ main() {
         ask_reboot
         
     else
-        # .env BELUM LENGKAP - Dashboard Only
+        # ============================================================
+        # BRANCH: .env BELUM LENGKAP → Dashboard ONLY
+        # ============================================================
         echo ""
         echo -e "${GREEN}✅ Finance Dashboard: TERINSTALL & AKTIF${NC}"
         echo -e "${YELLOW}⏸️  Finance Bot: MENUNGGU KONFIGURASI .env${NC}"
