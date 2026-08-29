@@ -116,11 +116,10 @@ Rp 11.200.000
 
 ## 🚀 Instalasi Cepat
 
-### 1. Clone Repository
+### Satu Perintah Instalasi
+
 ```bash
-git clone https://github.com/USERNAME/Telegram-Finance-Bot.git
-cd Telegram-Finance-Bot
-```
+curl -fsSL https://raw.githubusercontent.com/RinaPython/Telegram-Finance-Bot/main/scripts/bootstrap.sh | sudo bash
 
 2. Install VPS (Otomatis)
 
