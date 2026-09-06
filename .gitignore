@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.production
+!.env.example
+
+# Data - JANGAN PERNAH TRACK
+data/
+logs/
+backups/
+secrets/
+secrets/*.json
+
+# Docker
+*.pid
+*.log
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup
+*.tar.gz
+*.zip
+*.bak
+*.backup
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Credentials
+*.key.json
+credentials.json
+token.json
+*.pem
+*.key

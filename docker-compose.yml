@@ -1,0 +1,22 @@
+services:
+  finance-bot:
+    build: .
+    container_name: finance-bot
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - AUTHORIZED_USER_ID=${AUTHORIZED_USER_ID}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SPREADSHEET_ID=${SPREADSHEET_ID:-}
+      - GOOGLE_SHEETS_CREDENTIALS=${GOOGLE_SHEETS_CREDENTIALS:-}
+      - GOOGLE_SHEETS_CREDENTIALS_JSON=${GOOGLE_SHEETS_CREDENTIALS_JSON:-}
+      - DELETE_MESSAGES=${DELETE_MESSAGES:-true}
+      - HISTORY_PAGE_SIZE=${HISTORY_PAGE_SIZE:-5}
+      - TZ=${TZ:-Asia/Jakarta}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./secrets:/app/secrets:ro
+    env_file:
+      - .env

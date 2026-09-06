@@ -1,0 +1,52 @@
+# Git
+.git/
+.gitignore
+.github/
+
+# Environment files - JANGAN PERNAH MASUK BUILD CONTEXT
+.env
+.env.*
+!.env.example
+
+# Data directories
+data/
+logs/
+backups/
+secrets/
+secrets/*.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Backup files
+*.log
+*.bak
+*.backup
+*.tmp
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+*.tar.gz
+*.zip
+
+# Test
+tests/
+docs/
